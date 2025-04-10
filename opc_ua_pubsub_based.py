@@ -10,7 +10,7 @@ TEST_NODE_ID = 'ns=4;i=2'     # schrijf node: TestInt1
 ECHO_NODE_ID = 'ns=4;i=3'     # echo node: EchoInt1
 
 # === Testinstellingen ===
-AANTAL_METINGEN = 100
+AANTAL_METINGEN = 250
 CSV_BESTAND = "opcua_sync_latency_log.csv"
 
 # === Globale variabelen ===
