@@ -19,7 +19,7 @@ if not os.path.exists(CSV_FILE):
 
 # === Configuratie ===
 stop_event = threading.Event()
-TEST_DURATION = 250  # seconden
+TEST_DURATION = 500  # seconden
 ARRAY_BASE_NODEID_START = 17  # TestArray2[0] = i=17, TestArray2[1] = i=18, ..., TestArray2[99] = i=116
 
 # === Loggingfunctie ===

@@ -3,132 +3,95 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
-# === Bestandspaden: latency + (optionele) cycletime per PLC en scenario ===
-files = {
-    "Nieuwe PLC": {
-        "Zonder stresstest": {
-            "latency": "TestNewPLC/opcua_latency_log_no_stress.csv",
-            "cycletime": "TestNewPLC/cycletime.csv"
-        },
-        "Met stresstest (com. lvl 20%)": {
-            "latency": "TestNewPLC/opcua_latency_log_with_stress_com_lvl_20.csv",
-            "cycletime": "TestNewPLC/cycletime_lvl_20.csv"
-        },
-        "Met stresstest (com. lvl 50%)": {
-            "latency": "TestNewPLC/opcua_latency_log_with_stress_com_lvl_50.csv",
-            "cycletime": "TestNewPLC/cycletime_lvl_50.csv"
-        }
-    },
-    "Oude PLC": {
-        "Zonder stresstest": {
-            "latency": "TestOldPLC/opcua_latency_log_no_stress.csv",
-            "cycletime": "TestOldPLC/cycletime.csv"
-        },
-        "Met stresstest (com. lvl 20%)": {
-            "latency": "TestOldPLC/opcua_latency_log_with_stress_com_lvl_20.csv",
-            "cycletime": "TestOldPLC/cycletime_lvl_20.csv"
-        },
-        "Met stresstest (com. lvl 50%)": {
-            "latency": "TestOldPLC/opcua_latency_log_with_stress_com_lvl_50.csv",
-            "cycletime": "TestOldPLC/cycletime_lvl_50.csv"
-        }
-    },
-    "TIA Portal V20 Firmware V3.1": {
-        "Zonder stresstest": {
-            "latency": "TestTIAV20FirmwareV3.1/opcua_latency_log_no_stress.csv",
-            "cycletime": "TestTIAV20FirmwareV3.1/cycletime.csv"
-        },
-        "Met stresstest (com. lvl 20%)": {
-            "latency": "TestTIAV20FirmwareV3.1/opcua_latency_log_with_stress_com_lvl_20.csv",
-            "cycletime": "TestTIAV20FirmwareV3.1/cycletime_lvl_20.csv"
-        },
-        "Met stresstest (com. lvl 50%)": {
-            "latency": "TestTIAV20FirmwareV3.1/opcua_latency_log_with_stress_com_lvl_50.csv",
-            "cycletime": "TestTIAV20FirmwareV3.1/cycletime_lvl_50.csv"
-        }
-    },
-    "TIA Portal V20 Firmware V4": {
-        "Zonder stresstest": {
-            "latency": "TestTIAV20FirmwareV4/opcua_latency_log_no_stress.csv",
-            "cycletime": "TestTIAV20FirmwareV4/cycletime.csv"
-        },
-        "Met stresstest (com. lvl 20%)": {
-            "latency": "TestTIAV20FirmwareV4/opcua_latency_log_with_stress_com_lvl_20.csv",
-            "cycletime": "TestTIAV20FirmwareV4/cycletime_lvl_20.csv"
-        },
-        "Met stresstest (com. lvl 50%)": {
-            "latency": "TestTIAV20FirmwareV4/opcua_latency_log_with_stress_com_lvl_50.csv",
-            "cycletime": "TestTIAV20FirmwareV4/cycletime_lvl_50.csv"
-        }
-    },
+# === Configuratie: paden per map en scenario
+base_dirs = {
+    "Old PLC": "TestOldPLC",
+    "Firmware V3.1": "TestTiaV20FirmwareV3.1",
+    "Firmware V4.0": "TestTiaV20FirmwareV4"
 }
 
-# === Alle gematchte data verzamelen
-all_matched = []
+scenario_bestanden = {
+    "Zonder stresstest": {
+        "latency": "opcua_latency_log_no_stress.csv",
+        "cycletime": "Cycletime.csv"
+    },
+    "Stresstest (20%)": {
+        "latency": "opcua_latency_log_with_stress_com_lvl_20.csv",
+        "cycletime": "Cycletime_lvl_20.csv"
+    },
+    "Stresstest (50%)": {
+        "latency": "opcua_latency_log_with_stress_com_lvl_50.csv",
+        "cycletime": "Cycletime_lvl_50.csv"
+    }
+}
 
-for plc, scenarios in files.items():
-    for scenario, paths in scenarios.items():
-        latency_path = paths["latency"]
-        cycle_path = paths["cycletime"]
+alle_data = []
+
+# === Inlezen per combinatie
+for systeem, map_path in base_dirs.items():
+    for scenario, bestanden in scenario_bestanden.items():
+        latency_path = os.path.join(map_path, bestanden["latency"])
+        cycle_path = os.path.join(map_path, bestanden["cycletime"])
 
         if not os.path.exists(latency_path) or not os.path.exists(cycle_path):
-            print(f"[⚠️] Sla over: ontbrekend bestand voor {plc} - {scenario}")
+            print(f"[⏭️] Bestand(en) ontbreken voor: {systeem} - {scenario}")
             continue
 
-        # Latency-log
-        df_opc = pd.read_csv(latency_path)
-        if "round_trip_seconden" not in df_opc.columns or "tijd_unix_ms" not in df_opc.columns:
-            print(f"[⚠️] Ongeldig latency-bestand: {latency_path}")
+        try:
+            df_lat = pd.read_csv(latency_path)
+            df_lat = df_lat.dropna(subset=["tijd_unix_ms", "round_trip_seconden"])
+            df_lat["round_trip_ms"] = df_lat["round_trip_seconden"] * 1000
+            df_lat["tijd_unix_ms"] = df_lat["tijd_unix_ms"].astype(float)
+        except Exception as e:
+            print(f"[❌] Fout bij inlezen latency ({latency_path}): {e}")
             continue
 
-        df_opc = df_opc.dropna(subset=["round_trip_seconden"])
-        df_opc["round_trip_ms"] = df_opc["round_trip_seconden"] * 1000
+        try:
+            df_cyc = pd.read_csv(cycle_path, skiprows=1, header=None,
+                                 names=["Sample", "tijd_unix_ms", "cycletime_ns"])
+            df_cyc["tijd_unix_ms"] = df_cyc["tijd_unix_ms"].astype(float)
+            df_cyc["cycletime_ms"] = df_cyc["cycletime_ns"] / 1_000_000
+        except Exception as e:
+            print(f"[❌] Fout bij inlezen cycletime ({cycle_path}): {e}")
+            continue
 
-        # Cycle time log (custom format)
-        df_cycle = pd.read_csv(cycle_path, header=None, skiprows=1, names=["Sample", "unix_ns", "cycletime_ns"])
-        df_cycle["unix_ms"] = df_cycle["unix_ns"] / 1_000_000
-        df_cycle["cycletime_ms"] = df_cycle["cycletime_ns"] / 1_000_000
-
-        # Match op tijd
-        matched = []
-        for _, row in df_opc.iterrows():
-            opc_time = row["tijd_unix_ms"]
-            idx = (df_cycle["unix_ms"] - opc_time).abs().idxmin()
-            matched_row = df_cycle.loc[idx]
-            matched.append({
-                "PLC": plc,
-                "Scenario": scenario,
-                "cycletime_ms": matched_row["cycletime_ms"],
-                "round_trip_ms": row["round_trip_ms"]
+        # === Match dichtstbijzijnd
+        matched_rows = []
+        for _, row in df_lat.iterrows():
+            idx = (df_cyc["tijd_unix_ms"] - row["tijd_unix_ms"]).abs().idxmin()
+            match = df_cyc.loc[idx]
+            matched_rows.append({
+                "round_trip_ms": row["round_trip_ms"],
+                "cycletime_ms": match["cycletime_ms"],
+                "Systeem": systeem,
+                "Scenario": scenario
             })
 
-        df_matched = pd.DataFrame(matched)
-        all_matched.append(df_matched)
+        df_matched = pd.DataFrame(matched_rows)
+        alle_data.append(df_matched)
+        print(f"[✓] Gecombineerd: {systeem} - {scenario}")
 
-# === Alles samenvoegen
-if not all_matched:
-    print("❌ Geen data beschikbaar om te plotten.")
+# === Plot
+if not alle_data:
+    print("❌ Geen geldige combinaties gevonden.")
     exit()
 
-df_all = pd.concat(all_matched, ignore_index=True)
+df_all = pd.concat(alle_data, ignore_index=True)
 
-# === Plot alles samen ===
 plt.figure(figsize=(14, 7))
+groups = df_all.groupby(["Systeem", "Scenario"])
 
-# Kleuren per PLC + Scenario
-groups = df_all.groupby(["PLC", "Scenario"])
-
-for (plc, scenario), group in groups:
-    label = f"{plc} - {scenario}"
-    plt.scatter(group["cycletime_ms"], group["round_trip_ms"], alpha=0.5, label=label)
-    if len(group) > 5:
-        smooth = lowess(group["round_trip_ms"], group["cycletime_ms"], frac=0.3)
+for (systeem, scenario), group in groups:
+    label = f"{systeem} - {scenario}"
+    plt.scatter(group["round_trip_ms"], group["cycletime_ms"], alpha=0.6, s=20, label=label)
+    if len(group) >= 5:
+        smooth = lowess(group["cycletime_ms"], group["round_trip_ms"], frac=0.3)
         plt.plot(smooth[:, 0], smooth[:, 1], linewidth=2)
 
-plt.title("OPC UA Round-trip tijd vs PLC Cycle Time", fontsize=16, weight='bold')
-plt.xlabel("PLC Cycle Time (ms)", fontsize=14)
-plt.ylabel("Round-trip tijd (ms)", fontsize=14)
+plt.title("Invloed van Round-trip tijd op PLC Cycletime", fontsize=16, weight='bold')
+plt.xlabel("Round-trip tijd (ms)", fontsize=14)
+plt.ylabel("PLC Cycletime (ms)", fontsize=14)
 plt.grid(True)
-plt.legend(title="PLC + Scenario", fontsize=10)
+plt.legend(title="Systeem + Scenario", fontsize=10)
 plt.tight_layout()
 plt.show()

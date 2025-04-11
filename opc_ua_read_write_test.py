@@ -5,12 +5,12 @@ import matplotlib.pyplot as plt
 
 # === OPC UA instellingen ===
 OPC_SERVER = "opc.tcp://172.16.0.1:4840"
-TEST_NODE_ID = 'ns=4;i=15'       # TestInt1
-ECHO_NODE_ID = 'ns=4;i=1637'    # EchoInt1
+TEST_NODE_ID = 'ns=4; i=15'     #i=2'    # TestInt1
+ECHO_NODE_ID = 'ns=4; i=1637'   #i=3'    # EchoInt1
 
 # === Testinstellingen ===
-AANTAL_METINGEN = 500
-SLEEP_TUSSEN_METINGEN = 0.1  # seconden
+AANTAL_METINGEN = 150
+SLEEP_TUSSEN_METINGEN = 0.05 #seconden
 MAX_POGINGEN = 10
 SLEEP_TUSSEN_POLL = 0.001    # 1 ms tussen polling
 
